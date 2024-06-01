@@ -8,7 +8,15 @@
 
 
 
-转换效果
+## 依赖库
+
+```
+pip install beautifulsoup4
+```
+
+- `beautifulsoup4`：用于解析HTML
+
+## 转换效果
 
 flomo的元信息会被转化成文件名/YAML值（name属性的属性值）
 采用年.月.日 时间戳（6位数）格式
