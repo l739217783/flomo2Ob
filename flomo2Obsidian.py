@@ -1,7 +1,7 @@
 # -*- encoding: utf-8 -*-
 '''
 @File    :   flomo2Obsidian.py
-@Time    :   2024/05/31 23:12:37
+@Time    :   2024/06/01 16:51:34
 @Author  :   Lin Guo Guang 
 @Version :   1.0
 @Contact :   739217783@qq.com
@@ -14,10 +14,22 @@
 
 import os
 import re
-import shutil
+import sys
 import time
 
+import oss2
 from bs4 import BeautifulSoup
+
+
+def upload_img(fila_path, oss_name):
+    # 上传图片的本地路径和对象键
+    local_image_path = fila_path  # 图片本地完整路径：/path/to/your/image.jpg
+    object_key = f"{oss_name}"  # 图片在OSS中的完整路径
+
+    # 上传图片到OSS
+    bucket.put_object_from_file(object_key, local_image_path)
+
+    print(f"图片已成功上传: {object_key}")
 
 
 def c_yaml(x, c_time, tags=None):
@@ -98,6 +110,8 @@ def create_toc():
 
 
 def main():
+    global oss_imgDir, bucket_space, endpoint
+
     # 解析HTML
     with open(file_path, "r", encoding="utf-8") as f:
         html = f.read()
@@ -107,6 +121,10 @@ def main():
     photo_dir = f"{save_path}/assets"
     if not os.path.exists(photo_dir):
         os.mkdir(photo_dir)
+
+    # 检测OSS存储图片路径
+    if not oss_imgDir:
+        oss_imgDir = 'img'
 
     for memo in soup.find_all(class_="memo"):
         # 元信息处理
@@ -135,14 +153,17 @@ def main():
         # 图片处理
         photo_content = ""
         for i in memo.find(class_="files"):
+            img_src = i.attrs["src"]
             local_photo_path = os.path.join(
-                os.path.split(file_path)[0], i.attrs["src"])
-            print(local_photo_path)
-            print(i.attrs["src"].split("/")[-1])
-            photo_content += f"![[{i}]]\n"
-            shutil.copyfile(
-                local_photo_path, f'{photo_dir}/{i.attrs["src"].split("/")[-1]}'
-            )
+                os.path.split(file_path)[0], img_src)
+            upload_img(
+                local_photo_path, f'{oss_imgDir}/{img_src.split("/")[-1]}'
+            )  # 上传图片
+
+            photo_content += (
+                f"![image.png](https://{bucket_space}.{endpoint}/{oss_imgDir}/{img_src.split('/')[-1]})"
+                + "\r\n"
+            )  # 创建图片文本
 
         # 写入文件
         with open(
@@ -171,6 +192,18 @@ def main():
 
 
 if __name__ == "__main__":
+
+    # oss对象初始化
+    auth = oss2.Auth("", "")  # 填入ID和Secret
+    bucket_space = ''  # 存储桶名称
+    endpoint = ''  # 外网Endpoint
+    oss_imgDir = ''   # 图片存储路径，不设置默认在存储桶根部创建img
+
+    try:
+        bucket = oss2.Bucket(auth, bucket_space, endpoint)
+    except oss2.exceptions.ClientError as e:
+        print(f'OSS连接错误,错误信息：{e}')
+        sys.exit()
 
     # flomo导出的html位置
     file_path = (
